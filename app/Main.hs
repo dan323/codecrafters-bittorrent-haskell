@@ -1,14 +1,14 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
 import Data.Aeson ( encode )
-import Data.Char (isDigit)
+import Data.Char (ord)
+import Data.List (singleton)
 import System.Environment ( getArgs )
 import System.Exit ( exitWith, ExitCode(ExitFailure) )
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as LB
 import Control.Monad as CM ( when )
 import Parser (runDecoder, DecodedValue(ST, INT, LST))
-import Data.Bits (Bits(xor))
 import qualified Control.Monad.RWS as LB
 
 decodeBencodedValue :: B.ByteString -> DecodedValue
@@ -36,4 +36,4 @@ main = do
 encodeValue :: DecodedValue -> LB.ByteString
 encodeValue (ST st) = encode $ B.unpack st
 encodeValue (INT x) = encode x
-encodeValue (LST ls) = encode $ "[" ++ foldr ((\z st -> LB.mconcat [z, "," , st]) . encodeValue) (LB.pack "]") ls
+encodeValue (LST ls) = LB.concat [LB.pack . singleton. fromIntegral . ord $ '[', LB.tail $ foldr ((\z st -> LB.mconcat [LB.pack . singleton. fromIntegral . ord $ ',', z , st]) . encodeValue) (LB.pack .  singleton. fromIntegral . ord $ ']') ls]
