@@ -1,5 +1,5 @@
 module Parser
-    (runDecoder,fromValue)
+    (runDecoder,DecodedValue(ST, INT))
 where
 
 import Data.ByteString.Char8 (ByteString, readInt, unpack, pack)
@@ -11,7 +11,6 @@ import Data.Functor ( ($>) )
 import Data.Char (isDigit, ord)
 import GHC.Word (Word8)
 import Control.Monad.Identity (Identity)
-import Data.Aeson (Value(Bool))
 import Data.ByteString.Builder (toLazyByteString)
 import Control.Monad.Combinators (option)
 

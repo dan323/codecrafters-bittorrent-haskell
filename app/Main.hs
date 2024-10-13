@@ -1,17 +1,17 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
-import Data.Aeson
+import Data.Aeson ( encode )
 import Data.ByteString.Char8 (ByteString)
 import Data.Char (isDigit)
-import System.Environment
-import System.Exit
+import System.Environment ( getArgs )
+import System.Exit ( exitWith, ExitCode(ExitFailure) )
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as LB
-import Control.Monad as CM
-import Parser (runDecoder, fromValue)
+import Control.Monad as CM ( when )
+import Parser (runDecoder, DecodedValue(ST, INT))
 
-decodeBencodedValue :: ByteString -> ByteString
-decodeBencodedValue = fromValue . runDecoder
+decodeBencodedValue :: ByteString -> DecodedValue
+decodeBencodedValue = runDecoder
 
 main :: IO ()
 main = do
@@ -27,8 +27,9 @@ main = do
             -- putStrLn "Logs from your program will appear here!"
             -- Uncomment this block to pass stage 1
             let encodedValue = args !! 1
-            let decodedValue = decodeBencodedValue $ B.pack encodedValue
-            let jsonValue = encode $ B.unpack decodedValue
+            let jsonValue = case decodeBencodedValue $ B.pack encodedValue of 
+                                    ST st -> encode $ B.unpack st
+                                    INT x -> encode x
             LB.putStr jsonValue
             putStr "\n"
         _ -> putStrLn $ "Unknown command: " ++ command
