@@ -1,5 +1,5 @@
 module Parser
-    (runDecoder,DecodedValue(ST, INT))
+    (runDecoder,DecodedValue(ST, INT, LST))
 where
 
 import Data.ByteString.Char8 (ByteString, readInt, unpack, pack)
@@ -17,7 +17,11 @@ import Control.Monad.Combinators (option)
 type Decoder = Parsec Void ByteString DecodedValue
 type Parser = Parsec Void ByteString
 
-data DecodedValue = ST ByteString | INT Int
+data DecodedValue = ST ByteString | INT Int | LST [DecodedValue]
+
+listDecoder :: Decoder
+listDecoder = LST <$> (single (fromIntegral . ord $ 'l') *> many valueDecoder <* single (fromIntegral . ord $ 'e'))
+
 
 intParser :: Parser Int
 intParser = read . unpack . B.pack <$> many digitChar
@@ -26,7 +30,7 @@ stringDecoder :: Decoder
 stringDecoder = intParser >>= (\len -> separatorParser *> (ST . B.pack <$> count len anySingle))
 
 valueDecoder :: Decoder
-valueDecoder = choice [stringDecoder, intDecoder]
+valueDecoder = choice [stringDecoder, intDecoder, listDecoder]
 
 separatorParser :: Parser Word8
 separatorParser = single (fromIntegral . ord $ ':'::Word8)
