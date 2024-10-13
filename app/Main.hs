@@ -36,4 +36,9 @@ main = do
 encodeValue :: DecodedValue -> LB.ByteString
 encodeValue (ST st) = encode $ B.unpack st
 encodeValue (INT x) = encode x
-encodeValue (LST ls) = LB.concat [LB.pack . singleton. fromIntegral . ord $ '[', LB.tail $ foldr ((\z st -> LB.mconcat [LB.pack . singleton. fromIntegral . ord $ ',', z , st]) . encodeValue) (LB.pack .  singleton. fromIntegral . ord $ ']') ls]
+encodeValue (LST ls) = fold LB.mempty $ fmap encodeValue ls
+    where
+        fold z     [] = LB.concat [LB.pack . singleton. fromIntegral . ord $ '[', z, LB.pack .  singleton. fromIntegral . ord $ ']']
+        fold z (x:xs) 
+            | z == LB.mempty = fold x xs
+            | otherwise      = fold (LB.concat [z, LB.pack . singleton. fromIntegral . ord $ ',', x]) xs
