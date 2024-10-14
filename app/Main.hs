@@ -1,8 +1,10 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 import Data.Aeson ( encode )
 import Data.Char (ord)
 import Data.List (singleton)
+import Data.Map ((!), toList)
 import System.Environment ( getArgs )
 import System.Exit ( exitWith, ExitCode(ExitFailure) )
 import qualified Data.ByteString.Char8 as B
@@ -31,12 +33,25 @@ main = do
             let jsonValue = encodeValue $ decodeBencodedValue $ B.pack encodedValue
             LB.putStr jsonValue
             putStr "\n"
+        "info"   -> do
+            let filePath = args !! 1
+            contents <- B.readFile filePath
+            let decodedValue = decodeBencodedValue contents
+            case decodedValue of
+                DIC map -> do
+                    LB.putStr $ LB.concat ["Tracker URL: ", let ST url = map ! "announce" in url]
+                    putStr "\n"
+                    case map ! "info" of
+                        DIC infoMap -> LB.putStr $ LB.concat ["Length: ", encodeValue $ infoMap ! "length"] 
+                        _ -> error "Unexpected"
+                    putStr "\n"
+                _ -> error "Unexpected"
         _ -> putStrLn $ "Unknown command: " ++ command
 
 encodeValue :: DecodedValue -> LB.ByteString
 encodeValue (ST st) = encode $ B.unpack $ LB.toStrict st
 encodeValue (INT x) = encode x
-encodeValue (DIC ls) = foldObj LB.mempty ls
+encodeValue (DIC ls) = foldObj LB.mempty $ toList ls
     where
         foldObj z     [] = LB.concat [LB.pack . singleton. fromIntegral . ord $ '{', z, LB.pack .  singleton. fromIntegral . ord $ '}']
         foldObj z ((k,v):xs) 

@@ -9,6 +9,7 @@ import qualified Data.ByteString as B
 import Text.Megaparsec (Parsec, many, single, satisfy, count, anySingle, parse, choice, (<?>),errorBundlePretty)
 import Text.Megaparsec.Byte (digitChar)
 import Data.Void ( Void )
+import Data.Map ( Map, fromList )
 import Data.Functor ( ($>) )
 import Data.Char (isDigit, ord)
 import GHC.Word (Word8)
@@ -18,13 +19,13 @@ import Control.Monad.Combinators (option)
 type Decoder = Parsec Void B.ByteString DecodedValue
 type Parser = Parsec Void B.ByteString
 
-data DecodedValue = ST BL.ByteString | INT Int | LST [DecodedValue] | DIC [(BL.ByteString, DecodedValue)]
+data DecodedValue = ST BL.ByteString | INT Int | LST [DecodedValue] | DIC (Map BL.ByteString DecodedValue)
 
 listDecoder :: Decoder
 listDecoder = LST <$> (single (fromIntegral . ord $ 'l') *> many valueDecoder <* single (fromIntegral . ord $ 'e'))
 
 mapDecoder :: Decoder
-mapDecoder = DIC <$> (single (fromIntegral . ord $ 'd') *> (many (stringDecoder >>= (\(ST key) -> (key,) <$> valueDecoder)) <?> "key - value") <* single (fromIntegral . ord $ 'e'))
+mapDecoder = DIC . fromList <$> (single (fromIntegral . ord $ 'd') *> (many (stringDecoder >>= (\(ST key) -> (key,) <$> valueDecoder)) <?> "key - value") <* single (fromIntegral . ord $ 'e'))
 
 intParser :: Parser Int
 intParser = read . unpack . B.pack <$> many digitChar
