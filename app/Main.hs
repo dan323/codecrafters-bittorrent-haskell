@@ -8,7 +8,7 @@ import System.Exit ( exitWith, ExitCode(ExitFailure) )
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as LB
 import Control.Monad as CM ( when )
-import Parser (runDecoder, DecodedValue(ST, INT, LST))
+import Parser (runDecoder, DecodedValue(ST, INT, LST, DIC))
 import qualified Control.Monad.RWS as LB
 
 decodeBencodedValue :: B.ByteString -> DecodedValue
@@ -34,8 +34,14 @@ main = do
         _ -> putStrLn $ "Unknown command: " ++ command
 
 encodeValue :: DecodedValue -> LB.ByteString
-encodeValue (ST st) = encode $ B.unpack st
+encodeValue (ST st) = encode $ B.unpack $ LB.toStrict st
 encodeValue (INT x) = encode x
+encodeValue (DIC ls) = foldObj LB.mempty ls
+    where
+        foldObj z     [] = LB.concat [LB.pack . singleton. fromIntegral . ord $ '{', z, LB.pack .  singleton. fromIntegral . ord $ '}']
+        foldObj z ((k,v):xs) 
+            | z == LB.mempty = foldObj (LB.concat [LB.pack . singleton. fromIntegral . ord $ '"',k,LB.pack . singleton. fromIntegral . ord $ '"',LB.pack . singleton. fromIntegral . ord $ ':', encodeValue v]) xs
+            | otherwise      = foldObj (LB.concat [z, LB.pack . singleton. fromIntegral . ord $ ',',LB.pack . singleton. fromIntegral . ord $ '"', k,LB.pack . singleton. fromIntegral . ord $ '"', LB.pack . singleton. fromIntegral . ord $ ':', encodeValue v]) xs
 encodeValue (LST ls) = fold LB.mempty $ fmap encodeValue ls
     where
         fold z     [] = LB.concat [LB.pack . singleton. fromIntegral . ord $ '[', z, LB.pack .  singleton. fromIntegral . ord $ ']']
