@@ -4,7 +4,7 @@
 import Data.Aeson ( encode )
 import Crypto.Hash.SHA1 (hashlazy, hash)
 import Data.Char (ord)
-import Data.List (singleton)
+import Data.List (singleton, intercalate)
 import Data.Map ((!), toList)
 import System.Environment ( getArgs )
 import System.Exit ( exitWith, ExitCode(ExitFailure) )
@@ -46,7 +46,21 @@ main = do
             putStr "\n"
             putStr $ "Info Hash: " ++ toHex (hashlazy . bencode $ infoValue)
             putStr "\n"
+            putStr $ "Piece Length: " ++ (show . pieceLength . info $ torrent)
+            putStr "\n"
+            putStr "Piece Hashes:\n"
+            let ps = LB.toStrict . pieces . info $ torrent
+            let sha = toHex <$> splitEqual ps 20
+            let shaText = intercalate "\n" sha
+            putStr shaText 
+            -- printPieces ps 20
         _ -> putStrLn $ "Unknown command: " ++ command
+
+splitEqual :: B.ByteString -> Int -> [B.ByteString]
+splitEqual bs n 
+    | bs == B.empty = []
+    | otherwise = let (a,b) = B.splitAt n bs in a:splitEqual b n
+
 
 toHex :: B.ByteString -> String
 toHex bytes = B.unpack bytes >>= printf "%02x"
