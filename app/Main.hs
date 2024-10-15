@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import Data.Aeson ( encode )
+import Crypto.Hash.SHA1 (hashlazy, hash)
 import Data.Char (ord)
 import Data.List (singleton)
 import Data.Map ((!), toList)
@@ -10,11 +11,10 @@ import System.Exit ( exitWith, ExitCode(ExitFailure) )
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as LB
 import Control.Monad as CM ( when )
-import Parser (runDecoder, DecodedValue(ST, INT, LST, DIC))
+import Parser (runDecoder, DecodedValue(ST, INT, LST, DIC), bencode)
+import Torrent (fromDecoded, Torrent(..), TorrentInfo(..))
 import qualified Control.Monad.RWS as LB
-
-decodeBencodedValue :: B.ByteString -> DecodedValue
-decodeBencodedValue = runDecoder
+import Text.Printf (printf)
 
 main :: IO ()
 main = do
@@ -30,23 +30,26 @@ main = do
             -- putStrLn "Logs from your program will appear here!"
             -- Uncomment this block to pass stage 1
             let encodedValue = args !! 1
-            let jsonValue = encodeValue $ decodeBencodedValue $ B.pack encodedValue
+            let jsonValue = encodeValue $ runDecoder $ B.pack encodedValue
             LB.putStr jsonValue
             putStr "\n"
         "info"   -> do
             let filePath = args !! 1
             contents <- B.readFile filePath
-            let decodedValue = decodeBencodedValue contents
-            case decodedValue of
-                DIC map -> do
-                    LB.putStr $ LB.concat ["Tracker URL: ", let ST url = map ! "announce" in url]
-                    putStr "\n"
-                    case map ! "info" of
-                        DIC infoMap -> LB.putStr $ LB.concat ["Length: ", encodeValue $ infoMap ! "length"] 
-                        _ -> error "Unexpected"
-                    putStr "\n"
-                _ -> error "Unexpected"
+            let decodedValue = runDecoder contents
+            let torrent = fromDecoded decodedValue
+            let DIC torValue = decodedValue
+            let infoValue = torValue ! "info"
+            LB.putStr $ LB.concat ["Tracker URL: ", announce torrent]
+            putStr "\n"
+            LB.putStr $ LB.concat ["Length: ", encode . torrentLength . info $ torrent]
+            putStr "\n"
+            putStr $ "Info Hash: " ++ toHex (hashlazy . bencode $ infoValue)
+            putStr "\n"
         _ -> putStrLn $ "Unknown command: " ++ command
+
+toHex :: B.ByteString -> String
+toHex bytes = B.unpack bytes >>= printf "%02x"
 
 encodeValue :: DecodedValue -> LB.ByteString
 encodeValue (ST st) = encode $ B.unpack $ LB.toStrict st

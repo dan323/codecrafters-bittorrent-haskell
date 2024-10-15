@@ -26,6 +26,8 @@ dependencies:
 - parser-combinators
 - parsec
 - attoparsec
+# Others
+- cryptohash-sha1
 
 executables:
   hs-bittorrent-exe:

@@ -1,15 +1,16 @@
 {-# LANGUAGE TupleSections #-}
 module Parser
-    (runDecoder,DecodedValue(ST, INT, LST, DIC))
+    (runDecoder, DecodedValue(ST, INT, LST, DIC), bencode)
 where
 
+import Data.Aeson ( encode )
 import Data.ByteString.Char8 (readInt, unpack, pack)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as B
 import Text.Megaparsec (Parsec, many, single, satisfy, count, anySingle, parse, choice, (<?>),errorBundlePretty)
 import Text.Megaparsec.Byte (digitChar)
 import Data.Void ( Void )
-import Data.Map ( Map, fromList )
+import Data.Map ( Map, fromList, toList)
 import Data.Functor ( ($>) )
 import Data.Char (isDigit, ord)
 import GHC.Word (Word8)
@@ -20,6 +21,18 @@ type Decoder = Parsec Void B.ByteString DecodedValue
 type Parser = Parsec Void B.ByteString
 
 data DecodedValue = ST BL.ByteString | INT Int | LST [DecodedValue] | DIC (Map BL.ByteString DecodedValue)
+
+bencode :: DecodedValue -> BL.ByteString
+bencode (ST st) = bencodeString st
+bencode (INT x) = bencodeInt x
+bencode (LST xs) = BL.concat [ BL.pack . pure . fromIntegral . ord $ 'l', BL.concat $ fmap bencode xs, BL.pack . pure . fromIntegral . ord $ 'e' ] 
+bencode (DIC d) = BL.concat [ BL.pack . pure . fromIntegral . ord $ 'd', BL.concat $ (\(k,v) -> BL.concat [ bencodeString k, bencode v]) <$> toList d, BL.pack . pure . fromIntegral . ord $ 'e' ] 
+
+bencodeString :: BL.ByteString -> BL.ByteString
+bencodeString st = BL.concat [ encode . BL.length $ st, BL.pack . pure . fromIntegral . ord $ ':', st ]
+
+bencodeInt :: Int -> BL.ByteString
+bencodeInt i = BL.concat [ BL.pack . pure . fromIntegral . ord $ 'i', encode i, BL.pack . pure . fromIntegral . ord $ 'e' ] 
 
 listDecoder :: Decoder
 listDecoder = LST <$> (single (fromIntegral . ord $ 'l') *> many valueDecoder <* single (fromIntegral . ord $ 'e'))
