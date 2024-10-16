@@ -1,11 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Torrent (fromDecoded, Torrent(..), TorrentInfo(..)) where
+module Torrent (fromDecoded, Torrent(..), infoTorrent) where
 
-import Parser
+import Parser (DecodedValue(..), runDecoder, bencode)
 import qualified Data.Map as M
 import Data.Map ((!))
 import qualified Data.ByteString.Lazy as LB
+import qualified Data.ByteString as B
 import Data.Maybe (fromMaybe)
+import qualified Data.Text as T (Text, concat, pack)
+import Data.Text.Encoding         as T  (decodeUtf8)
+import Data.List (intercalate)
+import Crypto.Hash.SHA1 (hashlazy, hash)
+
+import Text.Printf (printf)
+import Data.Aeson ( encode )
 
 data TorrentInfo = Info {
       torrentLength :: Int
@@ -49,3 +57,25 @@ toDecoded (Torrent {announce = ann, info = inf}) = let Info {name = nam, torrent
         addPLength plen xs = ("piece length", INT plen):xs 
         addLength len xs = ("length", INT len):xs
         infoMap nam len ps plen = M.fromList . addLength len . addName nam . addPieces ps . addPLength plen $ []
+
+infoTorrent :: B.ByteString -> T.Text
+infoTorrent content = let decodedValue = runDecoder content in
+            let torrent = fromDecoded decodedValue in
+            let DIC torValue = decodedValue in
+            let infoValue = torValue ! "info" in
+            let ps = LB.toStrict . pieces . info $ torrent in
+            let sha = toHex <$> splitEqual ps 20 in
+            let shaText = intercalate "\n" sha in
+            T.concat ["Tracker URL: ",T.decodeUtf8 . B.concat . LB.toChunks $ announce torrent, "\n", 
+                "Length: ", T.decodeUtf8 . B.concat . LB.toChunks .  encode . torrentLength . info $ torrent, "\n",
+                "Info Hash: ", T.pack $ toHex (hashlazy . bencode $ infoValue), "\n",
+                "Piece Length: ", T.pack . show . pieceLength . info $ torrent, "\n",
+                "Piece Hashes:\n", T.pack shaText]
+
+splitEqual :: B.ByteString -> Int -> [B.ByteString]
+splitEqual bs n 
+    | bs == B.empty = []
+    | otherwise = let (a,b) = B.splitAt n bs in a:splitEqual b n
+
+toHex :: B.ByteString -> String
+toHex bytes = B.unpack bytes >>= printf "%02x"

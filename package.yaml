@@ -28,6 +28,7 @@ dependencies:
 - attoparsec
 # Others
 - cryptohash-sha1
+- wreq
 
 executables:
   hs-bittorrent-exe:
