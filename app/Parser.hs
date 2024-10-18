@@ -1,4 +1,5 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Parser (runDecoder, encodeValue, bencode, DecodedValue (..)) where
 
@@ -64,7 +65,7 @@ runDecoder input = case parse valueDecoder "" input of
   Right y -> y
 
 encodeValue :: DecodedValue -> LB.ByteString
-encodeValue (ST st) = st
+encodeValue (ST st) = LB.concat ["\"",st,"\""]
 encodeValue (INT x) = encode x
 encodeValue (DIC ls) = foldObj LB.empty $ toList ls
   where
