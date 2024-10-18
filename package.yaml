@@ -28,7 +28,11 @@ dependencies:
 - attoparsec
 # Others
 - cryptohash-sha1
-- wreq
+- req
+- modern-uri
+- http-api-data
+- http-types
+- http-client
 
 executables:
   hs-bittorrent-exe:

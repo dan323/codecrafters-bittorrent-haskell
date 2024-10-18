@@ -1,24 +1,24 @@
 {-# LANGUAGE TupleSections #-}
-module Parser
-    (runDecoder, encodeValue, bencode, DecodedValue(..))
-where
 
-import Data.Aeson ( encode )
-import Data.ByteString.Char8 (readInt, unpack, pack)
-import qualified Data.ByteString.Lazy as LB
-import qualified Data.ByteString as B
-import Text.Megaparsec (Parsec, many, single, satisfy, count, anySingle, parse, choice, (<?>),errorBundlePretty)
-import Text.Megaparsec.Byte (digitChar)
-import Data.Void ( Void )
-import Data.Map ( Map, fromList, toList)
-import Data.Functor ( ($>) )
-import Data.Char (isDigit, ord)
-import GHC.Word (Word8)
-import Control.Monad.Identity (Identity)
+module Parser (runDecoder, encodeValue, bencode, DecodedValue (..)) where
+
 import Control.Monad.Combinators (option)
+import Control.Monad.Identity (Identity)
+import Data.Aeson (encode)
+import qualified Data.ByteString as B
+import Data.ByteString.Char8 (pack, readInt, unpack)
+import qualified Data.ByteString.Lazy as LB
+import Data.Char (isDigit, ord)
+import Data.Functor (($>))
 import Data.List (singleton)
+import Data.Map (Map, fromList, toList)
+import Data.Void (Void)
+import GHC.Word (Word8)
+import Text.Megaparsec (Parsec, anySingle, choice, count, errorBundlePretty, many, parse, satisfy, single, (<?>))
+import Text.Megaparsec.Byte (digitChar)
 
 type Decoder = Parsec Void B.ByteString DecodedValue
+
 type Parser = Parsec Void B.ByteString
 
 data DecodedValue = ST LB.ByteString | INT Int | LST [DecodedValue] | DIC (Map LB.ByteString DecodedValue)
@@ -26,14 +26,15 @@ data DecodedValue = ST LB.ByteString | INT Int | LST [DecodedValue] | DIC (Map L
 bencode :: DecodedValue -> LB.ByteString
 bencode (ST st) = bencodeString st
 bencode (INT x) = bencodeInt x
-bencode (LST xs) = LB.concat [ LB.pack . pure . fromIntegral . ord $ 'l', LB.concat $ fmap bencode xs, LB.pack . pure . fromIntegral . ord $ 'e' ] 
-bencode (DIC d) = LB.concat [ LB.pack . pure . fromIntegral . ord $ 'd', LB.concat $ (\(k,v) -> LB.concat [ bencodeString k, bencode v]) <$> toList d, LB.pack . pure . fromIntegral . ord $ 'e' ] 
+bencode (LST xs) = LB.concat [LB.pack . pure . fromIntegral . ord $ 'l', LB.concat $ fmap bencode xs, LB.pack . pure . fromIntegral . ord $ 'e']
+bencode (DIC d) = LB.concat [LB.pack . pure . fromIntegral . ord $ 'd', LB.concat $ (\(k, v) -> LB.concat [bencodeString k, bencode v]) <$> toList d, LB.pack . pure . fromIntegral . ord $ 'e']
 
 bencodeString :: LB.ByteString -> LB.ByteString
-bencodeString st = LB.concat [ encode . LB.length $ st, LB.pack . pure . fromIntegral . ord $ ':', st ]
+bencodeString st = LB.concat [encode . LB.length $ st, LB.pack . pure . fromIntegral . ord $ ':', st]
 
 bencodeInt :: Int -> LB.ByteString
-bencodeInt i = LB.concat [ LB.pack . pure . fromIntegral . ord $ 'i', encode i, LB.pack . pure . fromIntegral . ord $ 'e' ] 
+bencodeInt i = LB.concat [LB.pack . pure . fromIntegral . ord $ 'i', encode i, LB.pack . pure . fromIntegral . ord $ 'e']
+
 
 listDecoder :: Decoder
 listDecoder = LST <$> (single (fromIntegral . ord $ 'l') *> many valueDecoder <* single (fromIntegral . ord $ 'e'))
@@ -51,28 +52,28 @@ valueDecoder :: Decoder
 valueDecoder = choice [stringDecoder, intDecoder, listDecoder, mapDecoder]
 
 separatorParser :: Parser Word8
-separatorParser = single (fromIntegral . ord $ ':'::Word8)
+separatorParser = single (fromIntegral . ord $ ':' :: Word8)
 
 intDecoder :: Decoder
 intDecoder = INT <$> (single (fromIntegral . ord $ 'i') *> (option id (single (fromIntegral . ord $ '-') $> negate) <*> intParser) <* single (fromIntegral . ord $ 'e'))
 
 runDecoder :: B.ByteString -> DecodedValue
 runDecoder input = case parse valueDecoder "" input of
-    Left x  -> error $ errorBundlePretty x
-    Right y -> y
+  Left x -> error $ errorBundlePretty x
+  Right y -> y
 
 encodeValue :: DecodedValue -> LB.ByteString
 encodeValue (ST st) = encode $ B.unpack $ LB.toStrict st
 encodeValue (INT x) = encode x
 encodeValue (DIC ls) = foldObj LB.empty $ toList ls
-    where
-        foldObj z     [] = LB.concat [LB.pack . singleton. fromIntegral . ord $ '{', z, LB.pack .  singleton. fromIntegral . ord $ '}']
-        foldObj z ((k,v):xs) 
-            | z == LB.empty = foldObj (LB.concat [LB.pack . singleton. fromIntegral . ord $ '"',k,LB.pack . singleton. fromIntegral . ord $ '"',LB.pack . singleton. fromIntegral . ord $ ':', encodeValue v]) xs
-            | otherwise      = foldObj (LB.concat [z, LB.pack . singleton. fromIntegral . ord $ ',',LB.pack . singleton. fromIntegral . ord $ '"', k,LB.pack . singleton. fromIntegral . ord $ '"', LB.pack . singleton. fromIntegral . ord $ ':', encodeValue v]) xs
+  where
+    foldObj z [] = LB.concat [LB.pack . singleton . fromIntegral . ord $ '{', z, LB.pack . singleton . fromIntegral . ord $ '}']
+    foldObj z ((k, v) : xs)
+      | z == LB.empty = foldObj (LB.concat [LB.pack . singleton . fromIntegral . ord $ '"', k, LB.pack . singleton . fromIntegral . ord $ '"', LB.pack . singleton . fromIntegral . ord $ ':', encodeValue v]) xs
+      | otherwise = foldObj (LB.concat [z, LB.pack . singleton . fromIntegral . ord $ ',', LB.pack . singleton . fromIntegral . ord $ '"', k, LB.pack . singleton . fromIntegral . ord $ '"', LB.pack . singleton . fromIntegral . ord $ ':', encodeValue v]) xs
 encodeValue (LST ls) = fold LB.empty $ fmap encodeValue ls
-    where
-        fold z     [] = LB.concat [LB.pack . singleton. fromIntegral . ord $ '[', z, LB.pack .  singleton. fromIntegral . ord $ ']']
-        fold z (x:xs) 
-            | z == LB.empty = fold x xs
-            | otherwise      = fold (LB.concat [z, LB.pack . singleton. fromIntegral . ord $ ',', x]) xs
+  where
+    fold z [] = LB.concat [LB.pack . singleton . fromIntegral . ord $ '[', z, LB.pack . singleton . fromIntegral . ord $ ']']
+    fold z (x : xs)
+      | z == LB.empty = fold x xs
+      | otherwise = fold (LB.concat [z, LB.pack . singleton . fromIntegral . ord $ ',', x]) xs
