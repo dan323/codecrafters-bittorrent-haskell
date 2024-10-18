@@ -22,6 +22,7 @@ type Decoder = Parsec Void B.ByteString DecodedValue
 type Parser = Parsec Void B.ByteString
 
 data DecodedValue = ST LB.ByteString | INT Int | LST [DecodedValue] | DIC (Map LB.ByteString DecodedValue)
+  deriving Show
 
 bencode :: DecodedValue -> LB.ByteString
 bencode (ST st) = bencodeString st
@@ -63,7 +64,7 @@ runDecoder input = case parse valueDecoder "" input of
   Right y -> y
 
 encodeValue :: DecodedValue -> LB.ByteString
-encodeValue (ST st) = encode $ B.unpack $ LB.toStrict st
+encodeValue (ST st) = st
 encodeValue (INT x) = encode x
 encodeValue (DIC ls) = foldObj LB.empty $ toList ls
   where
