@@ -33,6 +33,7 @@ dependencies:
 - http-api-data
 - http-types
 - http-client
+- split
 
 executables:
   hs-bittorrent-exe:

@@ -1,18 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE InstanceSigs #-}
 
 module Peers where
 
 import Data.Char (ord)
 import GHC.Word (Word8)
-import Data.List (intersperse)
+import Data.List (intercalate)
 import Text.URI (mkURI)
 import Data.Aeson (encode)
-import Data.ByteString as B (ByteString, unpack, putStr, pack, concat)
+import Data.ByteString as B (ByteString, cons, unpack, putStr, pack, concat, splitAt)
 import Data.ByteString.Lazy as BL (ByteString, putStr, toStrict, length, unpack, pack, concat)
 import qualified Data.ByteString.Builder as BS
-import qualified Data.Text.Encoding as TT (decodeUtf8, decodeUtf16LE)
+import qualified Data.Text.Encoding as TT (decodeUtf8, encodeUtf8)
 import qualified Data.Text.Lazy as T (toStrict, unpack)
 import qualified Data.Text.Lazy.Encoding as T (decodeUtf8)
 import qualified Data.Text as T (Text, pack, concat)
@@ -39,6 +38,7 @@ import Network.HTTP.Req
       responseBody)
 import Web.HttpApiData (ToHttpApiData(..))
 import qualified Network.HTTP.Client as L
+import Network.Simple.TCP
 
 getPeers :: Torrent -> IO [String]
 getPeers torrent = do
@@ -56,7 +56,7 @@ getPeers torrent = do
 modifyQuery :: Torrent -> L.Request -> Req L.Request
 modifyQuery torrent req = do
     let qs = L.queryString req
-    let finalReq = req {L.queryString = B.concat [qs, "&info_hash=", B.pack $ (fromIntegral . ord) <$> (toURLEncode $ infoHash torrent) ]}
+    let finalReq = req {L.queryString = B.concat [qs, "&info_hash=", B.pack $ fromIntegral . ord <$> toURLEncode (infoHash torrent) ]}
     return finalReq
 
 optionsFromTorrent :: Torrent -> Option 'Http
@@ -66,7 +66,13 @@ optionsFromTorrent torrent =
             <> "uploaded" =: (0 :: Int)
             <> "compact" =: (1 :: Int)
             <> "left" =: (T.toStrict . T.decodeUtf8 . encode . torrentLength . info $ torrent)
-            <> "peer_id" =: ("GCbyiBYUqq7CQqR1wZk4" :: T.Text)
+            <> "peer_id" =: peerId
+
+peerId :: T.Text
+peerId = "GCbyiBYUqq7CQqR1wZk4"
+
+peerIdBytes :: B.ByteString
+peerIdBytes = TT.encodeUtf8 peerId
 
 
 toURLEncode :: B.ByteString -> String
@@ -82,8 +88,20 @@ toPeers (DIC d) = let ls = (d ! "peers") in
 filterIPPort :: BL.ByteString -> [String]
 filterIPPort input 
     | BL.length input == 0 = []
-    | otherwise = let (ip, portAndRest) =  splitAt 4 $ BL.unpack input in
-                    let (port, rest) = splitAt 2 portAndRest in
-                        let ipFinal = Prelude.concat $ intersperse "." $ ((show . toInteger) <$> ip) in
-                            let portFinal = show $ (toInteger $ head port)*16*16 + (toInteger . head . tail $ port) in
-                                (Prelude.concat [ipFinal, ":", portFinal]) : (filterIPPort $ BL.pack rest)
+    | otherwise = let (ip, portAndRest) =  Prelude.splitAt 4 $ BL.unpack input in
+                    let (port, rest) = Prelude.splitAt 2 portAndRest in
+                        let ipFinal = intercalate "." (show . toInteger <$> ip) in
+                            let portFinal = show $ toInteger (head port)*16*16 + (toInteger . head . tail $ port) in
+                                Prelude.concat [ipFinal, ":", portFinal] : filterIPPort (BL.pack rest)
+
+handShakePeer :: Torrent -> String -> String -> IO B.ByteString
+handShakePeer torrent ip port = connect ip port $ \(socket, addr) -> do
+    send socket $ handShakeMessage torrent
+    message <- recv socket 68
+    case message of
+        Just dat -> let (_, peer) = B.splitAt 48 dat in pure peer
+        Nothing   -> error "Nothing"
+
+
+handShakeMessage :: Torrent -> B.ByteString
+handShakeMessage torrent = B.cons (19::Word8) "BitTorrent protocol" <> (B.pack . replicate 8) (0::Word8) <> infoHash torrent <> peerIdBytes
