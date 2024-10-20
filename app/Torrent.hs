@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Torrent (fromDecoded, Torrent (..), infoTorrent, TorrentInfo (..), infoHash) where
+module Torrent (fromDecoded, Torrent (..), infoTorrent, TorrentInfo (..), infoHash, toHex) where
 
 import Crypto.Hash.SHA1 (hash, hashlazy)
 import Data.Aeson (encode)

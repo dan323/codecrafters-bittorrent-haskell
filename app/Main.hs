@@ -51,7 +51,7 @@ main = do
       contents <- B.readFile filePath
       let torrent = fromDecoded . runDecoder $ contents
       res <- handShakePeer torrent ip port
-      B.putStr $ "Peer ID: " <> res
+      putStrLn $ "Peer ID: " <> res
     _ -> putStrLn $ "Unknown command: " ++ command
 
 infoCommand :: B.ByteString -> T.Text

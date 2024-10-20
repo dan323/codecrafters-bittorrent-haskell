@@ -16,7 +16,7 @@ import qualified Data.Text.Lazy as T (toStrict, unpack)
 import qualified Data.Text.Lazy.Encoding as T (decodeUtf8)
 import qualified Data.Text as T (Text, pack, concat)
 import qualified Data.Text.IO as T (putStrLn)
-import Torrent (Torrent (..), TorrentInfo (..), infoHash)
+import Torrent (Torrent (..), TorrentInfo (..), infoHash, toHex)
 import Parser (runDecoder, DecodedValue(..))
 import Text.Printf (printf)
 import Data.Map ((!))
@@ -94,12 +94,12 @@ filterIPPort input
                             let portFinal = show $ toInteger (head port)*16*16 + (toInteger . head . tail $ port) in
                                 Prelude.concat [ipFinal, ":", portFinal] : filterIPPort (BL.pack rest)
 
-handShakePeer :: Torrent -> String -> String -> IO B.ByteString
+handShakePeer :: Torrent -> String -> String -> IO String
 handShakePeer torrent ip port = connect ip port $ \(socket, addr) -> do
     send socket $ handShakeMessage torrent
     message <- recv socket 68
     case message of
-        Just dat -> let (_, peer) = B.splitAt 48 dat in pure peer
+        Just dat -> let (_, peer) = B.splitAt 48 dat in pure $ toHex peer
         Nothing   -> error "Nothing"
 
 
